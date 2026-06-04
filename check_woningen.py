@@ -119,9 +119,17 @@ def haal_woninglinks(page, site):
 
     Geeft een lijst van dicts terug: {"url": ..., "prijs": ...}
     """
-    page.goto(site["url"], wait_until="networkidle", timeout=60000)
-    # Even extra wachten voor sites die traag laden
-    page.wait_for_timeout(3000)
+    # We wachten op 'domcontentloaded' i.p.v. 'networkidle'. Sommige sites
+    # (zoals Rebo) hebben constant achtergrondverkeer waardoor 'networkidle'
+    # nooit bereikt wordt en je een timeout krijgt. Daarna geven we de pagina
+    # met een vaste wachttijd de kans om de woningen (via JavaScript) te tonen.
+    try:
+        page.goto(site["url"], wait_until="domcontentloaded", timeout=60000)
+    except Exception:
+        # Laatste poging: gewoon openen zonder op een toestand te wachten.
+        page.goto(site["url"], wait_until="commit", timeout=60000)
+    # Geef JavaScript-sites tijd om hun aanbod in te laden.
+    page.wait_for_timeout(6000)
 
     # Probeer een 'accepteer cookies' knop te klikken (faalt stilletjes als die er niet is)
     for tekst in ["Accepteren", "Akkoord", "Accept", "Alles accepteren", "Sta toe"]:

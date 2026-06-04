@@ -99,6 +99,13 @@
   ],
   "Vesteda Nijmegen": [],
   "Ik Wil Huren": [],
-  "BPD Woningfonds": [],
-  "Corpowonen Woonwaarts": []
+  "BPD Woningfonds": [
+    "https://hurenbij.bpdwoningfonds.nl/object/509550dba9190d37ba5f911a69541b45/"
+  ],
+  "Corpowonen Woonwaarts": [
+    "https://www.corpowonen.nl/object/52489/amandelboomstraat-20-nijmegen",
+    "https://www.corpowonen.nl/object/64894/einthovenstraat-3-nijmegen",
+    "https://www.corpowonen.nl/object/65986/lankforst-4614-nijmegen",
+    "https://www.corpowonen.nl/object/66384/dokstraat-321-nijmegen"
+  ]
 }

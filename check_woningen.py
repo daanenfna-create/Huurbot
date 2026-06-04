@@ -97,6 +97,16 @@ SEEN_FILE = Path("seen.json")
 # --------------------------------------------------------------------------
 PLAATSEN = ["nijmegen", "lent"]
 
+# --------------------------------------------------------------------------
+# Budgetfilter. Woningen duurder dan MAX_PRIJS (euro per maand) vallen weg.
+# TOON_ZONDER_PRIJS bepaalt wat er gebeurt met woningen waarvan we GEEN prijs
+# op de overzichtspagina kunnen vinden:
+#   True  = toch tonen (je mist niets, maar krijgt soms te dure woningen)
+#   False = weglaten (alleen woningen waarvan we zeker weten dat ze passen)
+# --------------------------------------------------------------------------
+MAX_PRIJS = 1400
+TOON_ZONDER_PRIJS = True
+
 
 def haal_prijs(tekst):
     """Zoek een huurprijs in de kaarttekst. Geeft bv. '€ 1.194' terug, of ''."""
@@ -104,6 +114,72 @@ def haal_prijs(tekst):
     m = re.search(r"€\s?\d[\d.,]*", tekst)
     if m:
         return m.group(0).strip()
+    return ""
+
+
+def prijs_naar_getal(prijs):
+    """Zet '€ 1.194' of '€1.250,50' om naar een geheel getal (1194 / 1250).
+
+    In Nederland is de punt een duizendtalscheiding en de komma een decimaal.
+    We zijn alleen geïnteresseerd in hele euro's. Geeft None als er geen
+    bruikbaar bedrag in staat.
+    """
+    if not prijs:
+        return None
+    # Houd alleen cijfers, punten en komma's over.
+    schoon = re.sub(r"[^\d.,]", "", prijs)
+    if not schoon:
+        return None
+    # Knip een eventueel decimaalgedeelte (achter de komma) weg.
+    schoon = schoon.split(",")[0]
+    # Punten (duizendtallen) verwijderen.
+    schoon = schoon.replace(".", "")
+    if schoon.isdigit():
+        return int(schoon)
+    return None
+
+
+def haal_adres(tekst, url):
+    """Probeer het adres te bepalen.
+
+    Eerst uit de kaarttekst (eerste zinnige regel, meestal de straat+nummer).
+    Lukt dat niet, dan leiden we het af uit de link (bv.
+    '.../steenstraat-19-nijmegen-nn105598' -> 'Steenstraat 19 Nijmegen').
+    """
+    # 1) Uit de kaarttekst: pak de eerste regel die op een adres lijkt.
+    for regel in (tekst or "").splitlines():
+        r = regel.strip()
+        if not r:
+            continue
+        # Sla regels over die duidelijk geen adres zijn.
+        laag = r.lower()
+        if laag in ("te huur", "nieuw", "verhuurd"):
+            continue
+        if r.startswith("€") or r.startswith("Beschikbaar"):
+            continue
+        # Een adres bevat meestal een huisnummer (een cijfer).
+        if re.search(r"\d", r) and len(r) < 60:
+            return r
+
+    # 2) Terugval: uit het laatste stuk van de link.
+    pad = urlparse(url).path.rstrip("/")
+    laatste = pad.split("/")[-1]
+    # Haal codes als 'nn105598' of lange id's achteraan weg.
+    laatste = re.sub(r"-?[a-z]{2}\d{4,}$", "", laatste)
+    laatste = re.sub(r"-?\d{4,}$", "", laatste)
+    # Splits op streepjes en gooi 'woorden' weg die eigenlijk codes zijn
+    # (lange reeksen met door elkaar cijfers en letters, of postcodes).
+    ruwe = [w for w in laatste.split("-") if w]
+    woorden = []
+    for w in ruwe:
+        # Postcode-achtig (1096gg) of lange hex-code (a922680760a64e) overslaan
+        if re.fullmatch(r"\d{4}[a-z]{0,2}", w):
+            continue
+        if len(w) >= 10 and re.search(r"\d", w) and re.search(r"[a-z]", w):
+            continue
+        woorden.append(w)
+    if woorden:
+        return " ".join(w.capitalize() for w in woorden)
     return ""
 
 
@@ -192,12 +268,24 @@ def haal_woninglinks(page, site):
         if not match:
             continue
 
-        # Prijs erbij zoeken (mag leeg blijven als de site hem niet toont)
+        # Prijs en adres erbij zoeken (mogen leeg blijven)
         prijs = haal_prijs(tekst)
+        adres = haal_adres(tekst, vol)
+
+        # ---- Budgetfilter ----
+        bedrag = prijs_naar_getal(prijs)
+        if bedrag is not None:
+            # We kennen de prijs: te duur? dan overslaan.
+            if bedrag > MAX_PRIJS:
+                continue
+        else:
+            # We kennen de prijs niet. Afhankelijk van de instelling tonen of niet.
+            if not TOON_ZONDER_PRIJS:
+                continue
 
         # Bewaar; als we deze woning al hadden maar nu mét prijs, vul aan.
         if vol not in gevonden or (prijs and not gevonden[vol]["prijs"]):
-            gevonden[vol] = {"url": vol, "prijs": prijs}
+            gevonden[vol] = {"url": vol, "prijs": prijs, "adres": adres}
 
     return list(gevonden.values())
 
@@ -228,9 +316,13 @@ def stuur_mail(nieuwe_per_site, fouten):
         totaal += len(woningen)
         regels.append(f"<h3>{site} ({len(woningen)} nieuw)</h3><ul>")
         for w in woningen:
+            adres = w.get("adres") or "Adres onbekend"
             prijs = w.get("prijs") or ""
             prijs_html = f" — <strong>{prijs} p/m</strong>" if prijs else ""
-            regels.append(f'<li><a href="{w["url"]}">{w["url"]}</a>{prijs_html}</li>')
+            regels.append(
+                f'<li><strong>{adres}</strong>{prijs_html}<br>'
+                f'<a href="{w["url"]}">{w["url"]}</a></li>'
+            )
         regels.append("</ul>")
 
     if fouten:

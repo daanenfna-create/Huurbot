@@ -2,13 +2,13 @@ name: Huurbot check
 
 # Wanneer draait dit?
 on:
-  # 3x per dag. Let op: GitHub gebruikt UTC-tijd.
-  # NL is in de zomer UTC+2, in de winter UTC+1.
-  # Onderstaande tijden = 9:30, 13:00 en 17:00 NL-zomertijd.
+  # Elk kwartier, maar alleen tijdens kantooruren op werkdagen.
+  # Gratis omdat de repository openbaar (public) is.
+  # Let op: GitHub draait op UTC. NL is in de zomer UTC+2, in de winter UTC+1.
+  # Onderstaande dekt 9:00 t/m 17:45 NL-zomertijd (7-15 UTC), ma t/m vr.
+  # ("*/15" = minuut 0,15,30,45 ; "7-15" = die uren ; "1-5" = ma-vr)
   schedule:
-    - cron: "30 7 * * *"   # 09:30 NL (zomer)
-    - cron: "0 11 * * *"   # 13:00 NL (zomer)
-    - cron: "0 15 * * *"   # 17:00 NL (zomer)
+    - cron: "*/15 7-15 * * 1-5"
   # Hiermee kun je hem ook handmatig starten via de GitHub-knop (handig om te testen)
   workflow_dispatch:
 
@@ -21,10 +21,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Code ophalen
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Python installeren
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 

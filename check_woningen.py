@@ -25,54 +25,64 @@ from playwright.sync_api import sync_playwright
 
 # --------------------------------------------------------------------------
 # De sites die we volgen.
-# "patroon" is een stukje tekst dat in de link van een woning voorkomt.
-# Zo onderscheiden we echte woningen van menu-links e.d.
+# "patroon"  = stukje dat in de link van een ECHTE woning voorkomt.
+# "negeer"   = lijst van stukjes; staat er een in de link, dan is het geen
+#              woning maar een overzicht/zoek/menu-pagina en slaan we hem over.
 # --------------------------------------------------------------------------
 SITES = [
     {
         "naam": "ST Makelaars",
         "url": "https://stmakelaars.nl/wonen/aanbod?buy_rent=rent&order_by=created_at-desc&page=1",
-        "patroon": "/wonen/",
+        "patroon": "/wonen/aanbod/",
+        "negeer": ["verkocht", "verhuurd"],
     },
     {
         "naam": "Hans Janssen",
         "url": "https://www.hansjanssen.nl/wonen/zoeken/heel-nederland/huur/",
-        "patroon": "/wonen/",
+        "patroon": "/wonen/object/",
+        "negeer": ["/zoeken/", "/kaart/"],
     },
     {
         "naam": "Soof Verhuurmakelaar",
         "url": "https://soofverhuurmakelaar.nl/woningaanbod/huur",
-        "patroon": "/woningaanbod/",
+        "patroon": "/woningaanbod/huur/",
+        "negeer": [],
     },
     {
         "naam": "123Wonen Nijmegen",
         "url": "https://www.123wonen.nl/huurwoningen/in/nijmegen",
-        "patroon": "/huurwoning",
+        "patroon": "/huurwoning/",
+        "negeer": ["/in/"],
     },
     {
         "naam": "Rebo Groep",
         "url": "https://www.rebogroep.nl/nl/particulier/ons-aanbod/huren?page=1",
-        "patroon": "/aanbod/",
+        "patroon": "/woning/",
+        "negeer": ["/ons-aanbod/", "/kopen", "/huren"],
     },
     {
         "naam": "Vesteda Nijmegen",
         "url": "https://www.vesteda.com/nl/woning-zoeken?placeType=1&sortType=0&radius=10&s=Nijmegen,+Nederland&sc=woning&latitude=51.84328&longitude=5.8609314&filters=&priceFrom=500&priceTo=9999",
         "patroon": "/nl/woning/",
+        "negeer": ["woning-zoeken"],
     },
     {
         "naam": "Ik Wil Huren",
-        "url": "https://ikwilhuren.nu/aanbod/",
-        "patroon": "/aanbod/",
+        "url": "https://ikwilhuren.nu/aanbod/?straal=15&plaats=Nijmegen&sort=aanbodDESC",
+        "patroon": "/object/",
+        "negeer": [],
     },
     {
         "naam": "BPD Woningfonds",
         "url": "https://hurenbij.bpdwoningfonds.nl/aanbod/",
-        "patroon": "/aanbod/",
+        "patroon": "/object/",
+        "negeer": [],
     },
     {
         "naam": "Corpowonen Woonwaarts",
         "url": "https://www.corpowonen.nl/aanbod/huur/heel-nederland/corporatie-woonwaarts",
-        "patroon": "/aanbod/",
+        "patroon": "/object/",
+        "negeer": [],
     },
 ]
 
@@ -88,8 +98,27 @@ SEEN_FILE = Path("seen.json")
 PLAATSEN = ["nijmegen", "lent"]
 
 
+def haal_prijs(tekst):
+    """Zoek een huurprijs in de kaarttekst. Geeft bv. '€ 1.194' terug, of ''."""
+    # Zoekt naar een euroteken gevolgd door een bedrag (met punt/komma).
+    m = re.search(r"€\s?\d[\d.,]*", tekst)
+    if m:
+        return m.group(0).strip()
+    return ""
+
+
+def is_verhuurd(tekst):
+    """True als de woning al verhuurd/onder optie is (dan willen we hem niet)."""
+    laag = tekst.lower()
+    woorden = ["verhuurd", "onder optie", "in optie", "niet beschikbaar"]
+    return any(w in laag for w in woorden)
+
+
 def haal_woninglinks(page, site):
-    """Open de site, wacht tot hij geladen is, en verzamel woning-links."""
+    """Open de site, wacht tot hij geladen is, en verzamel echte woningen.
+
+    Geeft een lijst van dicts terug: {"url": ..., "prijs": ...}
+    """
     page.goto(site["url"], wait_until="networkidle", timeout=60000)
     # Even extra wachten voor sites die traag laden
     page.wait_for_timeout(3000)
@@ -107,20 +136,19 @@ def haal_woninglinks(page, site):
 
     basis = "{0.scheme}://{0.netloc}".format(urlparse(site["url"]))
 
-    # Per link halen we niet alleen de href op, maar ook de zichtbare tekst
-    # van het dichtstbijzijnde 'kaartje' eromheen. Zo kunnen we op plaatsnaam
-    # filteren ook als die niet in de link zelf staat.
+    # Per link halen we de href op én de tekst van het dichtstbijzijnde
+    # 'kaartje'. We pakken een KLEINER kaartje (2 niveaus omhoog) zodat de
+    # tekst van buurwoningen niet uitlekt naar deze woning.
     items = page.eval_on_selector_all(
         "a[href]",
         """els => els.map(e => {
-            // Zoek een logisch 'kaart'-element omhoog in de boom
             let kaart = e;
-            for (let i = 0; i < 4 && kaart.parentElement; i++) {
+            for (let i = 0; i < 2 && kaart.parentElement; i++) {
                 kaart = kaart.parentElement;
             }
             return {
                 href: e.getAttribute('href'),
-                tekst: (kaart.innerText || '').slice(0, 400)
+                tekst: (kaart.innerText || '').slice(0, 300)
             };
         })""",
     )
@@ -130,25 +158,40 @@ def haal_woninglinks(page, site):
         href = item.get("href")
         if not href:
             continue
+
+        # Moet het woning-patroon bevatten ...
         if site["patroon"] not in href:
             continue
+        # ... en geen van de te negeren stukjes.
+        if any(stuk in href for stuk in site.get("negeer", [])):
+            continue
+
         vol = urljoin(basis, href)
-        # Filter losse categorie-links eruit (geen specifieke woning)
+        # Link moet een eigen woningpagina zijn, niet een losse categorie.
         pad = urlparse(vol).path.rstrip("/")
         if pad.count("/") < 2:
             continue
 
+        tekst = item.get("tekst") or ""
+
+        # ---- Al verhuurd? Dan overslaan. ----
+        if is_verhuurd(tekst):
+            continue
+
         # ---- Plaatsfilter: alleen Nijmegen of Lent ----
-        # We kijken naar de link én de tekst van het kaartje.
-        haystack = (vol + " " + (item.get("tekst") or "")).lower()
-        # "nijmegen" mag overal in voorkomen; "lent" alleen als heel woord
-        # (anders matcht het ook op 'talent', 'lente', enz.)
+        haystack = (vol + " " + tekst).lower()
         match = "nijmegen" in haystack or re.search(r"\blent\b", haystack)
         if not match:
             continue
 
-        gevonden[vol] = vol
-    return list(gevonden.keys())
+        # Prijs erbij zoeken (mag leeg blijven als de site hem niet toont)
+        prijs = haal_prijs(tekst)
+
+        # Bewaar; als we deze woning al hadden maar nu mét prijs, vul aan.
+        if vol not in gevonden or (prijs and not gevonden[vol]["prijs"]):
+            gevonden[vol] = {"url": vol, "prijs": prijs}
+
+    return list(gevonden.values())
 
 
 def laad_seen():
@@ -171,13 +214,15 @@ def stuur_mail(nieuwe_per_site, fouten):
 
     regels = ["<h2>Nieuwe huurwoningen gevonden!</h2>"]
     totaal = 0
-    for site, links in nieuwe_per_site.items():
-        if not links:
+    for site, woningen in nieuwe_per_site.items():
+        if not woningen:
             continue
-        totaal += len(links)
-        regels.append(f"<h3>{site} ({len(links)} nieuw)</h3><ul>")
-        for l in links:
-            regels.append(f'<li><a href="{l}">{l}</a></li>')
+        totaal += len(woningen)
+        regels.append(f"<h3>{site} ({len(woningen)} nieuw)</h3><ul>")
+        for w in woningen:
+            prijs = w.get("prijs") or ""
+            prijs_html = f" — <strong>{prijs} p/m</strong>" if prijs else ""
+            regels.append(f'<li><a href="{w["url"]}">{w["url"]}</a>{prijs_html}</li>')
         regels.append("</ul>")
 
     if fouten:
@@ -221,13 +266,15 @@ def main():
             print(f"Check: {naam} ...")
             page = context.new_page()
             try:
-                links = haal_woninglinks(page, site)
+                woningen = haal_woninglinks(page, site)
                 eerder = set(seen.get(naam, []))
-                nieuw = [l for l in links if l not in eerder]
+                # Nieuw = woningen waarvan de URL nog niet eerder gezien is
+                nieuw = [w for w in woningen if w["url"] not in eerder]
                 nieuwe_per_site[naam] = nieuw
-                # Update de complete lijst van gezien
-                seen[naam] = sorted(set(links) | eerder)
-                print(f"  {len(links)} gevonden, waarvan {len(nieuw)} nieuw.")
+                # Update de complete lijst van geziene URL's
+                alle_urls = {w["url"] for w in woningen} | eerder
+                seen[naam] = sorted(alle_urls)
+                print(f"  {len(woningen)} gevonden, waarvan {len(nieuw)} nieuw.")
             except Exception as e:
                 fouten[naam] = str(e)[:200]
                 print(f"  FOUT: {e}")

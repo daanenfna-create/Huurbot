@@ -304,9 +304,19 @@ def bewaar_seen(data):
 
 
 def stuur_mail(nieuwe_per_site, fouten):
-    afzender = os.environ["GMAIL_ADRES"]
-    wachtwoord = os.environ["GMAIL_APP_WACHTWOORD"]
-    ontvanger = os.environ.get("ONTVANGER_ADRES", afzender)
+    # .strip() haalt per ongeluk meegekomen spaties/enters weg, zodat een
+    # onzichtbaar 'newline'-teken achter een adres geen fout meer geeft.
+    afzender = os.environ["GMAIL_ADRES"].strip()
+    wachtwoord = os.environ["GMAIL_APP_WACHTWOORD"].strip()
+    ontvanger_ruw = os.environ.get("ONTVANGER_ADRES", afzender)
+    # Sta meerdere ontvangers toe, gescheiden door komma of puntkomma.
+    ontvangers = [
+        a.strip()
+        for a in re.split(r"[,;]", ontvanger_ruw)
+        if a.strip()
+    ]
+    if not ontvangers:
+        ontvangers = [afzender]
 
     regels = ["<h2>Nieuwe huurwoningen gevonden!</h2>"]
     totaal = 0
@@ -337,13 +347,13 @@ def stuur_mail(nieuwe_per_site, fouten):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = onderwerp
     msg["From"] = afzender
-    msg["To"] = ontvanger
+    msg["To"] = ", ".join(ontvangers)
     msg.attach(MIMEText(html, "html"))
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
         server.login(afzender, wachtwoord)
-        server.sendmail(afzender, [ontvanger], msg.as_string())
-    print(f"Mail verstuurd naar {ontvanger} ({totaal} nieuwe woningen).")
+        server.sendmail(afzender, ontvangers, msg.as_string())
+    print(f"Mail verstuurd naar {', '.join(ontvangers)} ({totaal} nieuwe woningen).")
 
 
 def main():

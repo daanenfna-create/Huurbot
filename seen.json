@@ -1,5 +1,23 @@
 {
-  "ST Makelaars": [],
+  "ST Makelaars": [
+    "https://stmakelaars.nl/wonen/aanbod/augustijnenstraat-21-nijmegen-nn105578",
+    "https://stmakelaars.nl/wonen/aanbod/berg-en-dalseweg-73-k-nijmegen-nn105568",
+    "https://stmakelaars.nl/wonen/aanbod/johan-maelwaelplein-5-nijmegen-nn105607",
+    "https://stmakelaars.nl/wonen/aanbod/johannes-vijghstraat-19-nijmegen-nn105608",
+    "https://stmakelaars.nl/wonen/aanbod/koedoestraat-57-nijmegen-nn105661",
+    "https://stmakelaars.nl/wonen/aanbod/plein-1944-133-c-nijmegen-nn105573",
+    "https://stmakelaars.nl/wonen/aanbod/pontanusstraat-nijmegen-nn105613",
+    "https://stmakelaars.nl/wonen/aanbod/staringstraat-9-d-nijmegen-nn105652",
+    "https://stmakelaars.nl/wonen/aanbod/staringstraat-9-e-nijmegen-nn105654",
+    "https://stmakelaars.nl/wonen/aanbod/staringstraat-9-n-nijmegen-nn105537",
+    "https://stmakelaars.nl/wonen/aanbod/staringstraat-9-nijmegen-nn105653",
+    "https://stmakelaars.nl/wonen/aanbod/steenstraat-13-nijmegen-nn105595",
+    "https://stmakelaars.nl/wonen/aanbod/steenstraat-15-nijmegen-nn105596",
+    "https://stmakelaars.nl/wonen/aanbod/steenstraat-17-nijmegen-nn105597",
+    "https://stmakelaars.nl/wonen/aanbod/steenstraat-19-nijmegen-nn105598",
+    "https://stmakelaars.nl/wonen/aanbod/vossenlaan-116-nijmegen-nn105491",
+    "https://stmakelaars.nl/wonen/aanbod/vossenlaan-120-a-nijmegen-nn105489"
+  ],
   "Hans Janssen": [
     "https://www.hansjanssen.nl/wonen/object/bijleveldsingel-jacob-canisstraat-nijmegen/"
   ],
@@ -15,6 +33,7 @@
     "https://soofverhuurmakelaar.nl/woningaanbod/huur/nijmegen/oude-graafseweg/ref-519?forsaleorrent=1&moveunavailablelistingstothebottom=true&orderby=10&orderdescending=true&take=14",
     "https://soofverhuurmakelaar.nl/woningaanbod/huur/nijmegen/pater-brugmanstraat/ref-535?forsaleorrent=1&moveunavailablelistingstothebottom=true&orderby=10&orderdescending=true&take=14",
     "https://soofverhuurmakelaar.nl/woningaanbod/huur/nijmegen/schependomlaan/ref-531?forsaleorrent=1&moveunavailablelistingstothebottom=true&orderby=10&orderdescending=true&take=14",
+    "https://soofverhuurmakelaar.nl/woningaanbod/huur/nijmegen/weezenhof/ref-537?forsaleorrent=1&moveunavailablelistingstothebottom=true&orderby=10&orderdescending=true&take=14",
     "https://soofverhuurmakelaar.nl/woningaanbod/huur/nijmegen/zwanenveld/ref-534?forsaleorrent=1&moveunavailablelistingstothebottom=true&orderby=10&orderdescending=true&take=14"
   ],
   "123Wonen Nijmegen": [],
